@@ -1,37 +1,26 @@
 #!/usr/bin/python3
 
-import jinja2
 import os
 import logging as log
 import sys
+from mailustart import resolve, convert
 
-args = os.environ.copy()
-
-log.basicConfig(stream=sys.stderr, level=args.get("LOG_LEVEL", "WARNING"))
-
-def convert(src, dst, args):
-    logger = log.getLogger("convert()")
-    logger.debug("Source: %s, Destination: %s", src, dst)
-    open(dst, "w").write(jinja2.Template(open(src).read()).render(**args))
+log.basicConfig(stream=sys.stderr, level=os.environ.get("LOG_LEVEL", "WARNING"))
 
 # Get the first DNS server
 with open("/etc/resolv.conf") as handle:
     content = handle.read().split()
-    args["RESOLVER"] = content[content.index("nameserver") + 1]
+    os.environ["RESOLVER"] = content[content.index("nameserver") + 1]
 
-if "HOST_WEBMAIL" not in args:
-    args["HOST_WEBMAIL"] = "webmail"
-if "HOST_ADMIN" not in args:
-    args["HOST_ADMIN"] = "admin"
-if "HOST_WEBDAV" not in args:
-    args["HOST_WEBDAV"] = "webdav:5232"
-if "HOST_ANTISPAM" not in args:
-    args["HOST_ANTISPAM"] = "antispam:11334"
+os.environ["HOST_WEBMAIL"] = resolve(os.environ.get("HOST_WEBMAIL", "webmail"))
+os.environ["HOST_ADMIN"] = resolve(os.environ.get("HOST_ADMIN", "admin"))
+os.environ["HOST_WEBDAV"] = resolve(os.environ.get("HOST_WEBDAV", "webdav:5232"))
+os.environ["HOST_ANTISPAM"] = resolve(os.environ.get("HOST_ANTISPAM", "antispam:11334"))
 
 # TLS configuration
 cert_name = os.getenv("TLS_CERT_FILENAME", default="cert.pem")
 keypair_name = os.getenv("TLS_KEYPAIR_FILENAME", default="key.pem")
-args["TLS"] = {
+os.environ["TLS"] = {
     "cert": ("/certs/%s" % cert_name, "/certs/%s" % keypair_name),
     "letsencrypt": ("/certs/letsencrypt/live/mailu/fullchain.pem",
         "/certs/letsencrypt/live/mailu/privkey.pem"),
@@ -39,15 +28,15 @@ args["TLS"] = {
     "mail-letsencrypt": ("/certs/letsencrypt/live/mailu/fullchain.pem",
         "/certs/letsencrypt/live/mailu/privkey.pem"),
     "notls": None
-}[args["TLS_FLAVOR"]]
+}[os.environ["TLS_FLAVOR"]]
 
-if args["TLS"] and not all(os.path.exists(file_path) for file_path in args["TLS"]):
+if os.environ["TLS"] and not all(os.path.exists(file_path) for file_path in os.environ["TLS"]):
     print("Missing cert or key file, disabling TLS")
-    args["TLS_ERROR"] = "yes"
+    os.environ["TLS_ERROR"] = "yes"
 
 # Build final configuration paths
-convert("/conf/tls.conf", "/etc/nginx/tls.conf", args)
-convert("/conf/proxy.conf", "/etc/nginx/proxy.conf", args)
-convert("/conf/nginx.conf", "/etc/nginx/nginx.conf", args)
+convert("/conf/tls.conf", "/etc/nginx/tls.conf")
+convert("/conf/proxy.conf", "/etc/nginx/proxy.conf")
+convert("/conf/nginx.conf", "/etc/nginx/nginx.conf")
 if os.path.exists("/var/run/nginx.pid"):
     os.system("nginx -s reload")
