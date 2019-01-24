@@ -4,11 +4,10 @@ RUN apk add --no-cache \
     python3 py3-pip git \
   && pip3 install --upgrade pip
 # Shared layer between rspamd, postfix, dovecot, unbound and nginx
-RUN pip3 install jinja2 \
-  && pip3 install git+https://github.com/usrpro/MailuStart.git#egg=mailustart
+RUN pip3 install git+https://github.com/usrpro/MailuStart.git#egg=mailustart
 # Image specific layers under this line
 RUN apk add --no-cache certbot nginx nginx-mod-mail openssl curl \
- && pip3 install idna requests watchdog tenacity
+ && pip3 install idna requests watchdog
 
 COPY conf /conf
 COPY static /static
